@@ -1,7 +1,7 @@
 import argparse
 import math
 import os
-
+from sklearn.model_selection import KFold
 import pandas as pd
 import torch
 from sklearn.metrics import r2_score, mean_absolute_error, mean_absolute_percentage_error
@@ -9,11 +9,11 @@ from torch import nn
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
-
+from sklearn.model_selection import KFold
 from datasets import get_train_test_data, MMoE_Dataset
 from models import MMoE_Model
 import numpy as np
-
+import random
 
 def create_dir(file_path):
     if not os.path.exists(os.path.dirname(file_path)):
@@ -21,7 +21,7 @@ def create_dir(file_path):
 
 
 
-def trainer(train_loader, model, model_save_path, device ,lr, epochs, early_stop_num, verbose=True, writer_flag=False):
+def trainer(train_loader, model, model_save_path, device ,lr, epochs, early_stop_num,verbose=True, writer_flag=False):
 
     criterion = nn.MSELoss(reduction='mean')
 
@@ -31,7 +31,6 @@ def trainer(train_loader, model, model_save_path, device ,lr, epochs, early_stop
     theta2 = model.theta2
     theta3 = model.theta3
     theta4 = model.theta4
-
 
     similarity_criterion = nn.CosineSimilarity()
 
@@ -177,9 +176,9 @@ def predict(model,device,data,y):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Train')
-    parser.add_argument('--file_path', type=str, help='')
-    parser.add_argument('--model_save_dir', type=str, help='')
-    parser.add_argument('--res_dir', type=str, help='')
+    parser.add_argument('--file_path', type=str, default='data/new_data/process_data/air2.csv',help='')
+    parser.add_argument('--model_save_dir', type=str,default='air2_model_result', help='')
+    parser.add_argument('--res_dir', type=str,default='air2_res_result', help='')
 
 
 
@@ -198,7 +197,7 @@ if __name__ == "__main__":
     parser.add_argument('--seed',  type=int, default=42, help='')
 
 
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+    device = "cuda:0" if torch.cuda.is_available() else "cpu"
     print(device)
 
     karg = parser.parse_args()
@@ -206,45 +205,50 @@ if __name__ == "__main__":
 
     file_name = os.path.basename(karg.file_path)
     print(f"\n\n\n====start to train {file_name}====")
-    model_save_path =  os.path.join(karg.model_save_dir,file_name.split(".")[0]+".ckpt")
+    #接下来在这里在套一个外层大循环，这和循环直接执行10次
+    for p in range(10):
+        rand_num = random.randint(0, 100)
+        kf = KFold(n_splits=10,shuffle=True,random_state=42)
+        #在此处我将完成交叉验证10次的选取,接下来我将保存结果，将所有数据都报错起来
+        or_data = pd.read_csv(karg.file_path).values
+        k_num=0
+        for train_index , test_index in kf.split(or_data):  # 调用split方法切分数据
+            x_train, x_test, y_train, y_test = get_train_test_data(karg.file_path, train_index , test_index)
+            train_dataset = MMoE_Dataset(x_train, y_train[:, 0], y_train[:, 1], y_train[:, 2], y_train[:, 3])
+            train_dataloader = DataLoader(train_dataset, karg.batch_size, shuffle=True, pin_memory=True)
+            model_save_path =  os.path.join(karg.model_save_dir,file_name.split(".")[0]+"di"+str(k_num)+"zhe"+str(p)+".ckpt")
+            create_dir(model_save_path)
+            model = MMoE_Model(input_dim=karg.input_dim, represent_dim=karg.represent_dim, pair_embedding_dim=karg.pair_embedding_dim,
+                               expert_num=karg.expert_num).to(device)
 
-    create_dir(model_save_path)
+            trainer(train_dataloader, model, model_save_path, device, karg.lr, karg.epochs, karg.early_stop_num, karg.verbose, karg.writer_flag)
+            rmse, r2, m, _, mape = predict(model, device, x_train, y_train)
+            print("=====")
+            print(mape)
+            rmse, r2, m, _, mape = predict(model, device, x_test, y_test)
+            print(f"file:{file_name}, rmse:{rmse}, r2:{r2},mae:{m},mape:{mape}")
 
-    x_train, x_test, y_train, y_test = get_train_test_data(karg.file_path, test_ratio=karg.test_ratio,seed=karg.seed)
-    train_dataset = MMoE_Dataset(x_train, y_train[:, 0], y_train[:, 1], y_train[:, 2], y_train[:, 3])
-    train_dataloader = DataLoader(train_dataset, karg.batch_size, shuffle=True, pin_memory=True)
+            result = pd.DataFrame([rmse + r2 + m + mape],
+                                  columns=["eads_rmse", "delta_e_rmse", "eb_rmse", "db_rmse", "eads_r2", "delta_e_r2", "eb_r2",
+                                           "db_r2", "eads_mae",
+                                           "delta_e_mae", "eb_mae", "db_mae", "eads_mape", "delta_e_mape", "eb_mape",
+                                           "db_mape"])
 
+            pred1, pred2, pred3, pred4, s1, s2, s3, s4, gates = model(torch.Tensor(x_train).to(device))
+            weight = pd.DataFrame(gates.cpu().mean(1).squeeze(-1).detach().numpy())
 
-    model = MMoE_Model(input_dim=karg.input_dim, represent_dim=karg.represent_dim, pair_embedding_dim=karg.pair_embedding_dim,
-                       expert_num=karg.expert_num).to(device)
-
-    trainer(train_dataloader, model, model_save_path, device, karg.lr, karg.epochs, karg.early_stop_num, karg.verbose, karg.writer_flag)
-    rmse, r2, m, _, mape = predict(model, device, x_train, y_train)
-    print("=====")
-    print(mape)
-    rmse, r2, m, _, mape = predict(model, device, x_test, y_test)
-    print(f"file:{file_name}, rmse:{rmse}, r2:{r2},mae:{m},mape:{mape}")
-
-    result = pd.DataFrame([rmse + r2 + m + mape],
-                          columns=["eads_rmse", "delta_e_rmse", "eb_rmse", "db_rmse", "eads_r2", "delta_e_r2", "eb_r2",
-                                   "db_r2", "eads_mae",
-                                   "delta_e_mae", "eb_mae", "db_mae", "eads_mape", "delta_e_mape", "eb_mape",
-                                   "db_mape"])
-
-    pred1, pred2, pred3, pred4, s1, s2, s3, s4, gates = model(torch.Tensor(x_train))
-    weight = pd.DataFrame(gates.mean(1).squeeze(-1).detach().numpy())
-
-    top2_index_list = []
-    for i in range(4):
-        top2 = np.sort(weight.iloc[i])[-2:]
-        top2_index = np.argsort(weight.iloc[i])[-2:]
-        top2_index_list.append(top2_index.values)
-    top2_index_df = pd.DataFrame((top2_index_list))
-    top2_index_df.columns = ["top2", "top1"]
+            top2_index_list = []
+            for i in range(4):
+                top2 = np.sort(weight.iloc[i])[-2:]
+                top2_index = np.argsort(weight.iloc[i])[-2:]
+                top2_index_list.append(top2_index.values)
+            top2_index_df = pd.DataFrame((top2_index_list))
+            top2_index_df.columns = ["top2", "top1"]
 
 
-    result_path = os.path.join(karg.res_dir, file_name.split(".")[0]+".csv")
-    top2_path = os.path.join(karg.res_dir, file_name.split(".")[0]+"_top2.csv")
-    create_dir(result_path)
-    top2_index_df.to_csv(top2_path, index=False)
-    result.to_csv(result_path, index_label='num')
+            result_path = os.path.join(karg.res_dir, file_name.split(".")[0]+"di"+str(k_num)+"zhe"+str(p)+".csv")
+            top2_path = os.path.join(karg.res_dir, file_name.split(".")[0]+"di"+str(k_num)+"zhe"+str(p)+"_top2.csv")
+            create_dir(result_path)
+            top2_index_df.to_csv(top2_path, index=False)
+            result.to_csv(result_path, index_label='num')
+            k_num=k_num+1

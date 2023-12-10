@@ -6,7 +6,30 @@ import numpy as np
 
 
 
-
+def get_train_test_data3(file_path, test_ratio,seed,dataset_num):
+    data = pd.read_csv(file_path).values
+    x_train_list=[]
+    y_train_list=[]
+    x_test_list=[]
+    y_test_list=[]
+    for i in range(15):
+        if i == dataset_num:
+            cur_data = data[35*i:35*(i+1),:]
+            transfer_x,transfer_y = cur_data[:, :-4], cur_data[:, -4:]
+        else:
+            cur_data = data[35*i:35*(i+1),:]
+            X, y = cur_data[:, :-4], cur_data[:, -4:]
+            x_train, x_test, y_train, y_test = train_test_split(X, y, test_size=test_size,random_state=seed)
+            x_train_list.append(x_train)
+            y_train_list.append(y_train)
+            x_test_list.append(x_test)
+            y_test_list.append(y_test)
+    x_train, x_test, y_train, y_test = np.concatenate(x_train_list),np.concatenate(x_test_list),np.concatenate(y_train_list),np.concatenate(y_test_list)
+    print(f"dataset num {dataset_num}")
+    print(f"the number of train samples is: {len(x_train)}")
+    print(f"the number of test samples is: {len(x_test)}")
+    print(f"the number of transfer samples is: {len(x_test)}")
+    return x_train, x_test, y_train, y_test,transfer_x,transfer_y
 def get_train_test_data2(all_data,  k, test_ratio=0.2,seed=42,eps="random"):
     x_train_list=[]
     y_train_list=[]

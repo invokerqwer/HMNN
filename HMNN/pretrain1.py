@@ -176,7 +176,7 @@ def predict(model,device,data,y):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Train')
-    parser.add_argument('--file_path', type=str, default='data/new_data/process_data/air2.csv',help='')
+    parser.add_argument('--file_path', type=str, default='data/air2.csv',help='')
     parser.add_argument('--model_save_dir', type=str,default='air2_model_result', help='')
     parser.add_argument('--res_dir', type=str,default='air2_res_result', help='')
 

@@ -6,6 +6,10 @@ cd HMNN
 ```
 Dependence packages：
 ```shell
+pip install numpy
+pip install tqdm
+pip install pandas
+pip install scikit-learn
 pip install torch
 pip install tensorboard
 ```

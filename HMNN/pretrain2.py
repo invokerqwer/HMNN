@@ -40,7 +40,7 @@ def get_train_test_data(file_path, test_size,seed,dataset_num):
     print(f"dataset num {dataset_num}")
     print(f"the number of train samples is: {len(x_train)}")
     print(f"the number of test samples is: {len(x_test)}")
-    print(f"the number of transfer samples is: {len(x_test)}")
+    print(f"the number of transfer samples is: {len(transfer_x)}")
     return x_train, x_test, y_train, y_test,transfer_x,transfer_y
 for i in range(15):
     x_train, x_test, y_train, y_test,transfer_X,transfer_y = get_train_test_data(file_path,0.2,42,i)
@@ -274,20 +274,20 @@ if __name__ == "__main__":
 
         trainer(model_water, water_select_expert, model_air, air_select_expert, train_dataloader, model,
                 model_save_path, device, karg.lr, karg.epochs, karg.early_stop_num, karg.verbose, karg.writer_flag)
-        water_expert_represents_test = model_water(torch.Tensor(x_test).to(device))[:, water_select_expert, :]
-        air_expert_represents_test = model_air(torch.Tensor(x_test).to(device))[:, air_select_expert, :]
-        rmse, r2, m, _, mape = predict(model, device, x_test, y_test, water_expert_represents_test,
-                                       air_expert_represents_test)
-        print(f"file:{file_name}, rmse:{rmse}, r2:{r2},mae:{m},mape:{mape}")
-        result = pd.DataFrame([rmse + r2 + m + mape],
-                              columns=["eads_rmse", "delta_e_rmse", "eb_rmse", "db_rmse", "eads_r2", "delta_e_r2",
-                                       "eb_r2",
-                                       "db_r2", "eads_mae",
-                                       "delta_e_mae", "eb_mae", "db_mae", "eads_mape", "delta_e_mape", "eb_mape",
-                                       "db_mape"])
-        result_path = os.path.join(karg.res_dir, file_name.split(".")[0] + str(k) + "_test.csv")
-        create_dir(result_path)
-        result.to_csv(result_path, index_label='num')
+        # water_expert_represents_test = model_water(torch.Tensor(x_test).to(device))[:, water_select_expert, :]
+        # air_expert_represents_test = model_air(torch.Tensor(x_test).to(device))[:, air_select_expert, :]
+        # rmse, r2, m, _, mape = predict(model, device, x_test, y_test, water_expert_represents_test,
+        #                                air_expert_represents_test)
+        # print(f"file:{file_name}, rmse:{rmse}, r2:{r2},mae:{m},mape:{mape}")
+        # result = pd.DataFrame([rmse + r2 + m + mape],
+        #                       columns=["eads_rmse", "delta_e_rmse", "eb_rmse", "db_rmse", "eads_r2", "delta_e_r2",
+        #                                "eb_r2",
+        #                                "db_r2", "eads_mae",
+        #                                "delta_e_mae", "eb_mae", "db_mae", "eads_mape", "delta_e_mape", "eb_mape",
+        #                                "db_mape"])
+        # result_path = os.path.join(karg.res_dir, file_name.split(".")[0] + str(k) + "_test.csv")
+        # create_dir(result_path)
+        # result.to_csv(result_path, index_label='num')
 
         water_expert_represents_test = model_water(torch.Tensor(transfer_X).to(device))[:, water_select_expert, :]
         air_expert_represents_test = model_air(torch.Tensor(transfer_X).to(device))[:, air_select_expert, :]
